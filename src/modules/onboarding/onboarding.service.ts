@@ -1,7 +1,7 @@
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { RedisService } from 'src/common';
-import { InjectionToken, RedisConstants } from 'src/common/constants';
+import { Env, InjectionToken, RedisConstants } from 'src/common/constants';
 import CryptoService from 'src/common/services/crypto.service';
 import UtilService from 'src/common/services/utils.service';
 import {
@@ -11,10 +11,14 @@ import {
 import { Schema } from 'src/types';
 import z from 'zod';
 import { OnboardingController } from './onboarding.controller';
-import { UserContext } from 'src/common/bean';
+import { ControllerResponse, UserContext } from 'src/common/bean';
+import { EmailQueueService } from 'src/common/queue/email_queue/email_queue.service';
+import { Template } from 'src/common/templates';
+import { DomainExceptions } from 'src/common/exceptions';
 
 @Injectable()
 export class OnboardingService {
+  private readonly REDIS_ONBOARD_DEPARTMENT = 'REDIS_ONBOARD_DEPARTMENT';
   constructor(
     private cryptoService: CryptoService,
     private departmentUsersEntityService: DepartmentUsersEntityService,
@@ -22,104 +26,94 @@ export class OnboardingService {
     private redis: RedisService,
     private userEntityService: UserEntityService,
     @Inject(InjectionToken.DRIZZLE) private db: NodePgDatabase,
+    private emailQueue: EmailQueueService,
     // private snsService: SnsService,
   ) {}
+
+  private getRedisOnboardKey(email: string) {
+    return RedisService.joinKeys(email, this.REDIS_ONBOARD_DEPARTMENT);
+  }
 
   async initializeOnboardingUser(
     userContext: UserContext,
     body: z.infer<typeof OnboardingController.create>,
-    devForce?: boolean,
   ) {
     const user = userContext.value.user;
-    let allowedEmails = Array.from(new Set(body.emails));
     if (!userContext.hasDepartmentAccess(body.departmentId)) {
       throw new ForbiddenException(
         `You dont have access to department : ${body.departmentId}`,
       );
     }
-    // if (UtilService.isProduction()) {
-    //   const throttledEmails = await Promise.all(
-    //     allowedEmails.map(async (v) => {
-    //       const { allowed } = await this.redis.throttle(
-    //         this.redis.joinKey(RedisConstants.Keys.THROTTLE_EMAIL, v),
-    //         10,
-    //         600,
-    //       );
-    //       if (!allowed) return null;
-    //       return v;
-    //     }),
-    //   );
-    //   allowedEmails = throttledEmails.filter(Boolean) as string[];
-    //   if (allowedEmails.length === 0) return;
-    // }
-    const timestamp = Date.now();
-    const encryptedPayload = allowedEmails.map((email) => {
-      const identifier = {
-        timestamp,
-        id: UtilService.uuidV4(),
+    const id = Date.now().toString();
+    const isDev = UtilService.isDevelopment() && body.isDev;
+    const finalResponse: Array<{ email: string; link: string }> = [];
+    const payload = body.emails.map((email) => {
+      const emailPayload = {
+        email,
+        id,
+        departmentId: body.departmentId,
+        orgId: user.orgId,
       };
-      return {
-        ...identifier,
-        data: encodeURIComponent(
-          this.cryptoService.encrypt(
-            JSON.stringify({
-              departmentId: body.departmentId,
-              email,
-              orgId: user.orgId,
-              ...identifier,
-            }),
-          ),
-        ),
-      };
-    });
-    // if (UtilService.isProduction()) {
-    //   // this.snsService.publish() TODO
-    //   return;
-    // } else
-    if (devForce) {
-      await Promise.all(
-        encryptedPayload.map((payload) =>
-          this.onboardUser(decodeURIComponent(payload.data), 'Password1!'),
-        ),
+      const link = UtilService.appendQueryParamToUrl(body.redirect, {
+        q: this.cryptoService.encryptEncodeDataForLink(emailPayload),
+      });
+      !isDev &&
+        this.emailQueue.addJob({
+          to: email,
+          html: Template.Email.onboardUserDepartment.render(link),
+          from: Env.domainEmail,
+          subject: 'Onboarding request',
+        });
+      finalResponse.push({ link, email });
+      //migrate to hmac later or do we ? :-/
+      this.redis.setTTL(
+        RedisConstants.Keys.EMAIL_VERIFICATION,
+        this.getRedisOnboardKey(email),
+        emailPayload,
+        42300, //12H
       );
-      return;
-    }
-    return {
-      message: encryptedPayload,
-    };
+    });
+    if (isDev) return finalResponse;
+    return ControllerResponse.Success;
   }
 
-  async onboardUser(payload: string, password: string) {
-    try {
-      const resp =
-        OnboardingController.onboardPayloadDecrpytedPayload.safeParse(
-          JSON.parse(this.cryptoService.decrypt(payload)) as z.infer<
-            typeof OnboardingController.onboardPayloadDecrpytedPayload
-          >,
-        );
-      if (!resp.success) {
-        throw new Error();
-      }
-      return await this.db.transaction(async (tx) => {
-        const [user] = await this.userEntityService.create(
-          {
-            email: resp.data.email,
-            password: password,
-            orgId: resp.data.orgId,
-          },
-          tx,
-        );
-        if (!user) throw new Error('');
-        await this.departmentUsersEntityService.onboardUserToDepartment(
-          resp.data.departmentId,
-          user.id,
-          tx,
-        );
-        return user;
-      });
-    } catch (e) {
-      console.log(e);
-      throw new ForbiddenException('Invalid payload');
+  async onboardUser(body: z.infer<typeof OnboardingController.onboardUser>) {
+    const decryptedData = this.cryptoService.decryptDecodeDataForLink(
+      OnboardingController.onboardPayloadDecrpytedPayload,
+      body.q,
+    );
+    if (!decryptedData) throw new ForbiddenException('Link expired.');
+    const resp = await this.redis.getUnknown(
+      RedisConstants.Keys.EMAIL_VERIFICATION,
+      this.getRedisOnboardKey(decryptedData.email),
+      OnboardingController.onboardPayloadDecrpytedPayload,
+    );
+    if (!resp || resp.id !== decryptedData.id) {
+      throw new ForbiddenException('Link expired');
     }
+    this.redis.del(
+      RedisConstants.Keys.EMAIL_VERIFICATION,
+      this.getRedisOnboardKey(decryptedData.email),
+    );
+    return await this.db.transaction(async (tx) => {
+      const [user] = await this.userEntityService.create(
+        {
+          email: resp.email,
+          password: this.cryptoService.gethash(body.password),
+          orgId: resp.orgId,
+        },
+        tx,
+      );
+      if (!user)
+        throw new DomainExceptions.EntityAlreadyExistsError(
+          'User already exists',
+        );
+      await this.departmentUsersEntityService.onboardUserToDepartment(
+        resp.departmentId,
+        user.id,
+        tx,
+      );
+      return user;
+    });
   }
 }

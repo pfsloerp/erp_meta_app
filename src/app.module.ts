@@ -17,7 +17,6 @@ export class MetaAppModule {
   static readonly name = 'META_APP';
   static readonly permissions = {
     REGISTER_USER: 'REGISTER_USER',
-    GET_APPS: 'GET_APPS',
     MANAGE_PERMISSIONS: 'MANAGE_PERMISSIONS',
     DEPARTMENT_ASSIGN_CHILDREN_USERS: 'DEPARTMENT_ASSIGN_CHILDREN_USERS',
   } as const;
@@ -38,16 +37,6 @@ export class MetaAppModule {
             `${MetaAppModule.name}:${MetaAppModule.permissions.REGISTER_USER}`,
           ],
           message: "You don't have access to add users",
-        }),
-      },
-      {
-        route: MetaAppModule.registeredRoutes.app,
-        apply: (user: UserContext) => ({
-          isAdmin: true,
-          allowedPermissions: [
-            `${MetaAppModule.name}:${MetaAppModule.permissions.GET_APPS}`,
-          ],
-          message: "You don't have access to view apps",
         }),
       },
       {
