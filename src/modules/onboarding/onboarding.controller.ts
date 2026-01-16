@@ -22,7 +22,7 @@ export class OnboardingController {
 
   static readonly onboardUser = z.object({
     password: ZodConstants.password(),
-    q: z.string(),
+    v: z.string(),
   });
 
   static readonly create = z
@@ -62,6 +62,6 @@ export class OnboardingController {
     @Body(SchemaPipe.inject(OnboardingController.onboardUser))
     body: z.infer<typeof OnboardingController.onboardUser>,
   ) {
-    this.onboardingService.onboardUser(body);
+    return this.onboardingService.onboardUser(body);
   }
 }

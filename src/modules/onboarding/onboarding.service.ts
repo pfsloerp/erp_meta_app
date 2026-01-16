@@ -1,10 +1,17 @@
-import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { RedisService } from 'src/common';
 import { Env, InjectionToken, RedisConstants } from 'src/common/constants';
 import CryptoService from 'src/common/services/crypto.service';
 import UtilService from 'src/common/services/utils.service';
 import {
+  CommonEntityService,
   DepartmentUsersEntityService,
   UserEntityService,
 } from 'src/entities/db';
@@ -27,6 +34,7 @@ export class OnboardingService {
     private userEntityService: UserEntityService,
     @Inject(InjectionToken.DRIZZLE) private db: NodePgDatabase,
     private emailQueue: EmailQueueService,
+    private commonEntityService: CommonEntityService,
     // private snsService: SnsService,
   ) {}
 
@@ -80,7 +88,7 @@ export class OnboardingService {
   async onboardUser(body: z.infer<typeof OnboardingController.onboardUser>) {
     const decryptedData = this.cryptoService.decryptDecodeDataForLink(
       OnboardingController.onboardPayloadDecrpytedPayload,
-      body.q,
+      body.v,
     );
     if (!decryptedData) throw new ForbiddenException('Link expired.');
     const resp = await this.redis.getUnknown(
@@ -95,25 +103,16 @@ export class OnboardingService {
       RedisConstants.Keys.EMAIL_VERIFICATION,
       this.getRedisOnboardKey(decryptedData.email),
     );
-    return await this.db.transaction(async (tx) => {
-      const [user] = await this.userEntityService.create(
-        {
-          email: resp.email,
-          password: this.cryptoService.gethash(body.password),
-          orgId: resp.orgId,
-        },
-        tx,
-      );
-      if (!user)
-        throw new DomainExceptions.EntityAlreadyExistsError(
-          'User already exists',
-        );
-      await this.departmentUsersEntityService.onboardUserToDepartment(
-        resp.departmentId,
-        user.id,
-        tx,
-      );
-      return user;
-    });
+    try {
+      await this.commonEntityService.onboardUserToDepartment({
+        departmentId: resp.departmentId,
+        email: resp.email,
+        orgId: resp.orgId,
+        password: this.cryptoService.gethash(resp.email),
+      });
+      return ControllerResponse.Success;
+    } catch (err) {
+      throw new InternalServerErrorException();
+    }
   }
 }
