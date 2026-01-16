@@ -2,16 +2,12 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
 import { ControllerResponse, UserContext } from 'src/common/bean';
 import {
-  AppEntityService,
-  PermissionEntityService,
-  RolesEntityService,
-  DepartmentEntityService,
-  UserEntityService,
   CommonEntityService,
+  PermissionEntityService,
+  UserEntityService,
 } from 'src/entities/db';
 import { Schema } from 'src/types';
 import { PermissionsController } from './permissions.controller';
@@ -19,10 +15,7 @@ import { PermissionsController } from './permissions.controller';
 @Injectable()
 export class PermissionsService {
   constructor(
-    private appEntityServbice: AppEntityService,
-    private rolesEntityService: RolesEntityService,
     private userEntityService: UserEntityService,
-    private departmentEntityService: DepartmentEntityService,
     private permissionEntityService: PermissionEntityService,
     private commonEntityService: CommonEntityService,
   ) {}

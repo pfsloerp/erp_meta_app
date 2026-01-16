@@ -16,7 +16,6 @@ export class AssignDepartmentService {
   ) {
     const targetUser = await this.userEntityService.getById(targetUserId);
     const currentUser = userContext.value.user;
-    console.log(currentUser, targetUser);
     if (
       !targetUser ||
       targetUser.orgId !== currentUser.orgId ||
