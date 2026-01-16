@@ -108,7 +108,7 @@ export class OnboardingService {
         departmentId: resp.departmentId,
         email: resp.email,
         orgId: resp.orgId,
-        password: this.cryptoService.gethash(resp.email),
+        password: this.cryptoService.gethash(body.password),
       });
       return ControllerResponse.Success;
     } catch (err) {

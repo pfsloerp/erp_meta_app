@@ -33,7 +33,7 @@ export class PermissionsController {
     @Req() request: Request,
     @Pagination()
     req: PaginatedArgType,
-    @Param('userId', DecoratorConstants.ParsePipeInt) userId,
+    @Param('userId') userId: string,
   ) {
     return this.userEntityService.getUserPermissionsViaContext(
       request.beans.UserContext!,
