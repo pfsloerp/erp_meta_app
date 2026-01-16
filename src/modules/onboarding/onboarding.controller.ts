@@ -15,9 +15,9 @@ export class OnboardingController {
 
   static readonly onboardPayloadDecrpytedPayload = z.object({
     email: z.email().nonempty(),
-    departmentId: z.int(),
+    departmentId: z.string(),
     id: z.string().nonempty(),
-    orgId: z.int(),
+    orgId: z.string(),
   });
 
   static readonly onboardUser = z.object({
@@ -27,7 +27,7 @@ export class OnboardingController {
 
   static readonly create = z
     .object({
-      departmentId: z.number(),
+      departmentId: z.string(),
       emails: z.array(z.email()).max(30).min(1),
       isDev: z.boolean().optional(),
       redirect: z.string(),

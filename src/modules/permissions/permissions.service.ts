@@ -30,8 +30,8 @@ export class PermissionsService {
   async updatePermission(
     user: Schema.Users,
     userContext: UserContext,
-    userId: number,
-    permissionId: number,
+    userId: string,
+    permissionId: string,
     action,
   ) {
     if (

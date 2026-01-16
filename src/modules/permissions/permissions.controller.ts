@@ -1,18 +1,10 @@
-import {
-  Controller,
-  Get,
-  Param,
-  ParseIntPipe,
-  Put,
-  Query,
-  Req,
-} from '@nestjs/common';
+import { Controller, Get, Param, Put, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
+import { DecoratorConstants } from 'src/common/constants';
 import { Pagination } from 'src/common/decorators/paginated.decorator';
+import { AppEntityService, UserEntityService } from 'src/entities/db';
 import type { PaginatedArgType } from 'src/types';
 import { PermissionsService } from './permissions.service';
-import { AppEntityService, UserEntityService } from 'src/entities/db';
-import { DecoratorConstants } from 'src/common/constants';
 
 @Controller('api/meta-app/permissions')
 export class PermissionsController {
@@ -67,10 +59,10 @@ export class PermissionsController {
   @Put('user/:userId/:action/permission/:permissionId')
   updatePermission(
     @Req() request: Request,
-    @Param('userId', DecoratorConstants.ParsePipeInt)
-    userId: number,
-    @Param('permissionId', DecoratorConstants.ParsePipeInt)
-    permissionId: number,
+    @Param('userId')
+    userId: string,
+    @Param('permissionId')
+    permissionId: string,
     @Param('action') action: string,
   ) {
     return this.permissionService.updatePermission(

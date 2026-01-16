@@ -11,8 +11,8 @@ export class AssignDepartmentService {
 
   async assignDepartment(
     userContext: UserContext,
-    targetUserId: number,
-    departmentId: number,
+    targetUserId: string,
+    departmentId: string,
   ) {
     const targetUser = await this.userEntityService.getById(targetUserId);
     const currentUser = userContext.value.user;
