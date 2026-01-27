@@ -25,6 +25,11 @@ export class OnboardingController {
     v: z.string(),
   });
 
+  static readonly updateProfile = z.object({
+    formId: z.string().uuid(),
+    data: z.object({}).passthrough().required(),
+  });
+
   static readonly create = z
     .object({
       departmentId: z.string(),
@@ -63,5 +68,14 @@ export class OnboardingController {
     body: z.infer<typeof OnboardingController.onboardUser>,
   ) {
     return this.onboardingService.onboardUser(body);
+  }
+
+  @Post('update-profile')
+  updateProfile(
+    @Req() req: Request,
+    @Body(SchemaPipe.inject(OnboardingController.updateProfile))
+    body: z.infer<typeof OnboardingController.updateProfile>,
+  ) {
+    return this.onboardingService.updateProfile(req.currentUser, body);
   }
 }

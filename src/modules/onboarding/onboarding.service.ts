@@ -1,9 +1,10 @@
 import {
-  ConflictException,
   ForbiddenException,
+  HttpStatus,
   Inject,
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { RedisService } from 'src/common';
@@ -13,6 +14,7 @@ import UtilService from 'src/common/services/utils.service';
 import {
   CommonEntityService,
   DepartmentUsersEntityService,
+  FormSubmissionEntityService,
   UserEntityService,
 } from 'src/entities/db';
 import { Schema } from 'src/types';
@@ -21,7 +23,7 @@ import { OnboardingController } from './onboarding.controller';
 import { ControllerResponse, UserContext } from 'src/common/bean';
 import { EmailQueueService } from 'src/common/queue/email_queue/email_queue.service';
 import { Template } from 'src/common/templates';
-import { DomainExceptions } from 'src/common/exceptions';
+import { withResponseCode } from 'src/common/http';
 
 @Injectable()
 export class OnboardingService {
@@ -35,6 +37,7 @@ export class OnboardingService {
     @Inject(InjectionToken.DRIZZLE) private db: NodePgDatabase,
     private emailQueue: EmailQueueService,
     private commonEntityService: CommonEntityService,
+    private formSubmissionEntityService: FormSubmissionEntityService,
     // private snsService: SnsService,
   ) {}
 
@@ -114,5 +117,51 @@ export class OnboardingService {
     } catch (err) {
       throw new InternalServerErrorException();
     }
+  }
+
+  async updateProfile(
+    currentUser: Schema.Users,
+    payload: z.infer<typeof OnboardingController.updateProfile>,
+  ) {
+    const user = currentUser;
+    if (!user.userInfo) {
+      return this.db.transaction(async (tx) => {
+        const submission = await this.formSubmissionEntityService.create(
+          {
+            formId: payload.formId,
+            data: payload.data,
+          },
+          { db: tx, throw: true },
+        );
+
+        const updatedUser = await this.userEntityService.updateUserInfo(
+          user.id,
+          submission.id,
+          { db: tx, throw: true },
+        );
+
+        return withResponseCode(HttpStatus.OK).item({
+          user: updatedUser,
+          submission,
+        });
+      });
+    }
+
+    const updatedSubmission = await this.formSubmissionEntityService.update(
+      user.userInfo,
+      {
+        formId: payload.formId,
+        data: payload.data,
+      },
+      { throw: false },
+    );
+
+    if (!updatedSubmission)
+      throw new NotFoundException('Form submission not found');
+
+    return withResponseCode(HttpStatus.OK).item({
+      user: user,
+      submission: updatedSubmission,
+    });
   }
 }

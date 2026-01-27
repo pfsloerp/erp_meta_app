@@ -9,6 +9,7 @@ import { MetaAppCoreModule } from './modules/meta-app-core.module';
 export class MetaAppModule {
   static readonly registeredRoutes = {
     onboardUser: 'api/meta-app/onboard/register',
+    updateProfile: 'api/meta-app/onboard/update-profile',
     app: 'api/meta-app/app',
     permissions: 'api/meta-app/permissions',
     assignDepartment: 'api/assign-department',
