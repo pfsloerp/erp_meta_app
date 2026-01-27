@@ -146,7 +146,6 @@ export class OnboardingService {
         });
       });
     }
-
     const updatedSubmission = await this.formSubmissionEntityService.update(
       user.userInfo,
       {
