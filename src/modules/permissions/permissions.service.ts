@@ -51,7 +51,7 @@ export class PermissionsService {
       return this.updatePermissionForUser(isRemove, permissionId, userId, user);
     }
 
-    const [accessAllowed, targetDepartmentId] =
+    const [accessAllowed, targetDepartmentIds] =
       await this.commonEntityService.isUserAccessible(userContext, targetUser);
 
     if (!accessAllowed) {
@@ -63,7 +63,7 @@ export class PermissionsService {
     const hasDepartmentAppAccess =
       await this.permissionEntityService.canAssignPermissionToUser(
         permissionId,
-        targetDepartmentId,
+        targetDepartmentIds,
       );
     if (!hasDepartmentAppAccess)
       throw new ForbiddenException(

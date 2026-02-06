@@ -28,7 +28,7 @@ export class OnboardingController {
   static readonly updateFormData = z.object({
     data: z.object({}).passthrough().required(),
     userId: ZodConstants.UUID,
-    type: z.enum(['department', 'profile']),
+    departmentId: ZodConstants.UUID,
   });
 
   static readonly create = z

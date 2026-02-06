@@ -9,10 +9,9 @@ export class AssignDepartmentService {
     private userEntityService: UserEntityService,
   ) {}
 
-  async assignDepartment(
+  private async validateTargetUser(
     userContext: UserContext,
     targetUserId: string,
-    departmentId: string,
   ) {
     const targetUser = await this.userEntityService.getById(targetUserId);
     const currentUser = userContext.value.user;
@@ -24,20 +23,28 @@ export class AssignDepartmentService {
     ) {
       throw new ForbiddenException('Cannot perform action on this user');
     }
+    return { targetUser, currentUser };
+  }
 
-    const [accessAllowed, targetCurrentDepartmentId] =
-      await this.commonEntityService.isUserAccessible(userContext, targetUser);
+  async addDepartment(
+    userContext: UserContext,
+    targetUserId: string,
+    departmentId: string,
+  ) {
+    const { targetUser, currentUser } = await this.validateTargetUser(
+      userContext,
+      targetUserId,
+    );
 
     if (currentUser.isAdmin) {
-      return await this.commonEntityService.updateDepartment(
+      return await this.commonEntityService.addDepartment(
         targetUserId,
-        targetCurrentDepartmentId,
         departmentId,
       );
     }
 
-    //check if provided departmentId is one of the child in currentUser departments
     if (
+      !userContext.hasDepartmentAccess(departmentId) &&
       !userContext.value.departments.children.find((d) => d.id === departmentId)
     ) {
       throw new ForbiddenException(
@@ -45,19 +52,57 @@ export class AssignDepartmentService {
       );
     }
 
-    //check if targetUser is under currentUser
+    const [accessAllowed] = await this.commonEntityService.isUserAccessible(
+      userContext,
+      targetUser,
+    );
     if (!accessAllowed) {
       throw new ForbiddenException(
         'User cannot be added to this department - Please contact Admin',
       );
     }
-    if (targetCurrentDepartmentId === departmentId) {
-      return ControllerResponse.Success;
+
+    return await this.commonEntityService.addDepartment(
+      targetUserId,
+      departmentId,
+    );
+  }
+
+  async removeDepartment(
+    userContext: UserContext,
+    targetUserId: string,
+    departmentId: string,
+  ) {
+    const { targetUser, currentUser } = await this.validateTargetUser(
+      userContext,
+      targetUserId,
+    );
+
+    if (currentUser.isAdmin) {
+      return await this.commonEntityService.removeDepartment(
+        targetUserId,
+        departmentId,
+      );
     }
 
-    return await this.commonEntityService.updateDepartment(
+    if (!userContext.hasDepartmentAccess(departmentId)) {
+      throw new ForbiddenException(
+        'You dont have access to this department, Please contact Admin',
+      );
+    }
+
+    const [accessAllowed] = await this.commonEntityService.isUserAccessible(
+      userContext,
+      targetUser,
+    );
+    if (!accessAllowed) {
+      throw new ForbiddenException(
+        'User cannot be removed from this department - Please contact Admin',
+      );
+    }
+
+    return await this.commonEntityService.removeDepartment(
       targetUserId,
-      targetCurrentDepartmentId,
       departmentId,
     );
   }

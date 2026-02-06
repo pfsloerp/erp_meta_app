@@ -25,6 +25,7 @@ import { EmailQueueService } from 'src/common/queue/email_queue/email_queue.serv
 import { Template } from 'src/common/templates';
 import { withResponseCode } from 'src/common/http';
 import { DomainExceptions } from 'src/common/exceptions';
+import { MetaAppModule } from '../../app.module';
 
 @Injectable()
 export class OnboardingService {
@@ -124,21 +125,24 @@ export class OnboardingService {
     userContext: UserContext,
     payload: z.infer<typeof OnboardingController.updateFormData>,
   ) {
-    const orgId = userContext.value.organization?.id;
-    const isOrg = payload.type === 'profile';
-    const orgFormFromUser = userContext.value.organization?.orgForm!;
-    const departmentFormFromUser = userContext.value.organization?.orgForm!;
-    if (!isOrg && !departmentFormFromUser)
+    const user = userContext.value.user;
+    if (
+      (!user.isAdmin && user.id !== payload.userId) ||
+      (!user.isAdmin &&
+        !userContext.hasPermission(
+          MetaAppModule.permissions.UPDATE_USER_PROFILE,
+        ))
+    ) {
+      throw new DomainExceptions.BusinessRuleViolationError(
+        'You dont have access to update this ',
+      );
+    }
+    const department = userContext.getDepartmentById(payload.departmentId);
+    const departmentFormId = department?.departmentFormId;
+    if (!department || !departmentFormId)
       throw new DomainExceptions.BusinessRuleViolationError(
         'Department form not found',
       );
-    if (isOrg && !orgFormFromUser)
-      throw new DomainExceptions.BusinessRuleViolationError(
-        'Org form not found',
-      );
-
-    const user = userContext.value.user;
-    const formId = isOrg ? orgFormFromUser : departmentFormFromUser;
 
     const targetUser = await this.userEntityService.getByOrgId(
       {
@@ -147,11 +151,11 @@ export class OnboardingService {
       },
       { throw: true },
     );
-    if (!targetUser.userInfo) {
+    if (!targetUser.departmentInfoId) {
       return await this.db.transaction(async (tx) => {
         const submission = await this.formSubmissionEntityService.create(
           {
-            formId,
+            formId: departmentFormId,
             data: payload.data,
           },
           { db: tx, throw: true },
@@ -161,8 +165,7 @@ export class OnboardingService {
           {
             userId: targetUser.id,
             formSubmissionId: submission.id,
-            keyType:
-              payload.type === 'department' ? 'departmentInfoId' : 'userInfo',
+            keyType: 'departmentInfoId',
           },
           { db: tx, throw: true },
         );
@@ -174,9 +177,9 @@ export class OnboardingService {
       });
     }
     const updatedSubmission = await this.formSubmissionEntityService.update(
-      targetUser.userInfo,
+      targetUser.departmentInfoId,
       {
-        formId,
+        formId: departmentFormId,
         data: payload.data,
       },
       { throw: false },
