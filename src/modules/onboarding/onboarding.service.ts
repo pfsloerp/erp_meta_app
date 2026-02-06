@@ -257,4 +257,19 @@ export class OnboardingService {
       departmentInfo,
     });
   }
+
+  async getUsersList(
+    userContext: UserContext,
+    emailPrefix: string,
+    paginatedArg: any,
+  ) {
+    const user = userContext.value.user;
+
+    return this.userEntityService.getUsersByEmailPrefix(
+      user,
+      emailPrefix,
+      paginatedArg,
+      userContext.value.departments?.children ?? [],
+    );
+  }
 }

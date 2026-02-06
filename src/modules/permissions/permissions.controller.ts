@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Put, Query, Req } from '@nestjs/common';
+import { Controller, Get, Param, Put, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { DecoratorConstants } from 'src/common/constants';
 import { Pagination } from 'src/common/decorators/paginated.decorator';
@@ -38,21 +38,6 @@ export class PermissionsController {
     return this.userEntityService.getUserPermissionsViaContext(
       request.beans.UserContext!,
       userId,
-    );
-  }
-
-  @Get('users')
-  getAllUsers(
-    @Req() request: Request,
-    @Pagination()
-    req: PaginatedArgType,
-    @Query('prefix') prefix: string,
-  ) {
-    return this.userEntityService.getUsersByEmailPrefix(
-      request.currentUser,
-      prefix,
-      req,
-      request.beans.UserContext?.value?.departments?.children ?? [],
     );
   }
 

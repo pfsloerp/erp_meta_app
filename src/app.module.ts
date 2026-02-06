@@ -11,6 +11,7 @@ export class MetaAppModule {
     onboardUser: 'api/meta-app/onboard/register',
     updateProfile: 'api/meta-app/onboard/update-user-profile-data',
     getProfile: 'api/meta-app/onboard/user-profile-data',
+    getUsersList: 'api/meta-app/onboard/users',
     app: 'api/meta-app/app',
     permissions: 'api/meta-app/permissions',
     assignDepartment: 'api/assign-department',
@@ -60,6 +61,16 @@ export class MetaAppModule {
             `${MetaAppModule.name}:${MetaAppModule.permissions.DEPARTMENT_ASSIGN_CHILDREN_USERS}`,
           ],
           message: "You don't have access to manage department for users",
+        }),
+      },
+      {
+        route: MetaAppModule.registeredRoutes.getUsersList,
+        apply: (user: UserContext) => ({
+          isAdmin: true,
+          allowedPermissions: [
+            `${MetaAppModule.name}:${MetaAppModule.permissions.UPDATE_USER_PROFILE}`,
+          ],
+          message: "You don't have access to view users list",
         }),
       },
     ],

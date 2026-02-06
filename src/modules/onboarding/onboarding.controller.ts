@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { RedisService, SchemaPipe, ZodRawValidatePipe } from 'src/common';
 import { HeaderConstants, ZodConstants } from 'src/common/constants';
 import { GetRoute } from 'src/common/decorators';
+import { Pagination } from 'src/common/decorators/paginated.decorator';
+import type { PaginatedArgType } from 'src/types';
 import z from 'zod';
 import { OnboardingService } from './onboarding.service';
 
@@ -89,5 +91,18 @@ export class OnboardingController {
     userId: string,
   ) {
     return this.onboardingService.getUserProfile(req.beans.UserContext!, userId);
+  }
+
+  @Get('users')
+  getUsersList(
+    @Req() req: Request,
+    @Pagination() paginatedArg: PaginatedArgType,
+    @Query('prefix') prefix: string,
+  ) {
+    return this.onboardingService.getUsersList(
+      req.beans.UserContext!,
+      prefix,
+      paginatedArg,
+    );
   }
 }
