@@ -4,8 +4,8 @@ import {
   Inject,
   Injectable,
   InternalServerErrorException,
-  NotFoundException,
 } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { RedisService } from 'src/common';
 import { Env, InjectionToken, RedisConstants } from 'src/common/constants';
@@ -13,10 +13,13 @@ import CryptoService from 'src/common/services/crypto.service';
 import UtilService from 'src/common/services/utils.service';
 import {
   CommonEntityService,
+  DepartmentEntityService,
   DepartmentUsersEntityService,
   FormSubmissionEntityService,
+  FormsEntityService,
   UserEntityService,
 } from 'src/entities/db';
+import { department, users } from 'src/db/schema';
 import { Schema } from 'src/types';
 import z from 'zod';
 import { OnboardingController } from './onboarding.controller';
@@ -24,7 +27,6 @@ import { ControllerResponse, UserContext } from 'src/common/bean';
 import { EmailQueueService } from 'src/common/queue/email_queue/email_queue.service';
 import { Template } from 'src/common/templates';
 import { withResponseCode } from 'src/common/http';
-import { DomainExceptions } from 'src/common/exceptions';
 import { MetaAppModule } from '../../app.module';
 
 @Injectable()
@@ -40,7 +42,8 @@ export class OnboardingService {
     private emailQueue: EmailQueueService,
     private commonEntityService: CommonEntityService,
     private formSubmissionEntityService: FormSubmissionEntityService,
-    // private snsService: SnsService,
+    private departmentEntityService: DepartmentEntityService,
+    private formsEntityService: FormsEntityService,
   ) {}
 
   private getRedisOnboardKey(email: string) {
@@ -126,71 +129,132 @@ export class OnboardingService {
     payload: z.infer<typeof OnboardingController.updateFormData>,
   ) {
     const user = userContext.value.user;
-    if (
-      (!user.isAdmin && user.id !== payload.userId) ||
-      (!user.isAdmin &&
-        !userContext.hasPermission(
-          MetaAppModule.permissions.UPDATE_USER_PROFILE,
-        ))
-    ) {
-      throw new DomainExceptions.BusinessRuleViolationError(
-        'You dont have access to update this ',
+
+    // admin → allow
+    // non-admin with permission → allow
+    // non-admin without permission → only allow self-update
+    if (!user.isAdmin) {
+      const hasPermission = userContext.hasPermission(
+        MetaAppModule.permissions.UPDATE_USER_PROFILE,
       );
+      if (!hasPermission && user.id !== payload.userId) {
+        throw new ForbiddenException(
+          'You dont have access to update this user',
+        );
+      }
     }
-    const department = userContext.getDepartmentById(payload.departmentId);
-    const departmentFormId = department?.departmentFormId;
-    if (!department || !departmentFormId)
-      throw new DomainExceptions.BusinessRuleViolationError(
-        'Department form not found',
+
+    return await this.db.transaction(async (tx) => {
+      const targetUser = await this.userEntityService.getByOrgId(
+        { id: payload.userId, orgId: user.orgId },
+        { db: tx, throw: true },
       );
+
+      const updates: Record<string, unknown> = {};
+
+      if (payload.email) {
+        updates.email = payload.email;
+      }
+      if (payload.password) {
+        updates.password = this.cryptoService.gethash(payload.password);
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await tx
+          .update(users)
+          .set(updates)
+          .where(eq(users.id, targetUser.id));
+      }
+
+      let submission: Schema.FormSubmission | null = null;
+
+      if (payload.departmentId && payload.data) {
+        const dept = await this.departmentEntityService.getById(
+          { user, id: payload.departmentId },
+          { db: tx, throw: true },
+        );
+
+        let departmentFormId = dept!.departmentFormId;
+
+        // create form for department if it doesn't exist
+        if (!departmentFormId) {
+          const form = await this.formsEntityService.createForm(
+            { name: 'Department Form', content: payload.data },
+            { db: tx, throw: true },
+          );
+          await tx
+            .update(department)
+            .set({ departmentFormId: form.id })
+            .where(eq(department.id, dept!.id));
+          departmentFormId = form.id;
+        }
+
+        if (!targetUser.departmentInfoId) {
+          submission = await this.formSubmissionEntityService.create(
+            { formId: departmentFormId, data: payload.data },
+            { db: tx, throw: true },
+          );
+          await this.userEntityService.updateUserInfo(
+            {
+              userId: targetUser.id,
+              formSubmissionId: submission.id,
+              keyType: 'departmentInfoId',
+            },
+            { db: tx, throw: true },
+          );
+        } else {
+          submission = await this.formSubmissionEntityService.update(
+            targetUser.departmentInfoId,
+            { formId: departmentFormId, data: payload.data },
+            { db: tx, throw: true },
+          );
+        }
+      }
+
+      return withResponseCode(HttpStatus.OK).item({
+        user: targetUser,
+        ...(submission && { submission }),
+      });
+    });
+  }
+
+  async getUserProfile(userContext: UserContext, userId: string) {
+    const user = userContext.value.user;
+
+    // admin → allow
+    // non-admin with permission → allow
+    // non-admin without permission → only allow self
+    if (!user.isAdmin) {
+      const hasPermission = userContext.hasPermission(
+        MetaAppModule.permissions.UPDATE_USER_PROFILE,
+      );
+      if (!hasPermission && user.id !== userId) {
+        throw new ForbiddenException(
+          'You dont have access to view this user profile',
+        );
+      }
+    }
 
     const targetUser = await this.userEntityService.getByOrgId(
-      {
-        id: payload.userId,
-        orgId: user.orgId,
-      },
+      { id: userId, orgId: user.orgId },
       { throw: true },
     );
-    if (!targetUser.departmentInfoId) {
-      return await this.db.transaction(async (tx) => {
-        const submission = await this.formSubmissionEntityService.create(
-          {
-            formId: departmentFormId,
-            data: payload.data,
-          },
-          { db: tx, throw: true },
-        );
 
-        const updatedUser = await this.userEntityService.updateUserInfo(
-          {
-            userId: targetUser.id,
-            formSubmissionId: submission.id,
-            keyType: 'departmentInfoId',
-          },
-          { db: tx, throw: true },
-        );
+    // Remove password from response
+    const { password, ...userWithoutPassword } = targetUser;
 
-        return withResponseCode(HttpStatus.OK).item({
-          user: updatedUser,
-          submission,
-        });
-      });
+    let departmentInfo: Schema.FormSubmission | null = null;
+
+    if (targetUser.departmentInfoId) {
+      departmentInfo = await this.formSubmissionEntityService.getById(
+        targetUser.departmentInfoId,
+        { throw: false },
+      );
     }
-    const updatedSubmission = await this.formSubmissionEntityService.update(
-      targetUser.departmentInfoId,
-      {
-        formId: departmentFormId,
-        data: payload.data,
-      },
-      { throw: false },
-    );
-
-    if (!updatedSubmission)
-      throw new NotFoundException('Form submission not found');
 
     return withResponseCode(HttpStatus.OK).item({
-      user: targetUser,
-      submission: updatedSubmission,
+      user: userWithoutPassword,
+      departmentInfo,
     });
   }
 }
