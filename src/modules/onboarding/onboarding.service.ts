@@ -24,6 +24,7 @@ import { ControllerResponse, UserContext } from 'src/common/bean';
 import { EmailQueueService } from 'src/common/queue/email_queue/email_queue.service';
 import { Template } from 'src/common/templates';
 import { withResponseCode } from 'src/common/http';
+import { DomainExceptions } from 'src/common/exceptions';
 
 @Injectable()
 export class OnboardingService {
@@ -119,24 +120,50 @@ export class OnboardingService {
     }
   }
 
-  async updateProfile(
-    currentUser: Schema.Users,
-    payload: z.infer<typeof OnboardingController.updateProfile>,
+  async updateUserInfo(
+    userContext: UserContext,
+    payload: z.infer<typeof OnboardingController.updateFormData>,
   ) {
-    const user = currentUser;
-    if (!user.userInfo) {
-      return this.db.transaction(async (tx) => {
+    const orgId = userContext.value.organization?.id;
+    const isOrg = payload.type === 'profile';
+    const orgFormFromUser = userContext.value.organization?.orgForm!;
+    const departmentFormFromUser = userContext.value.organization?.orgForm!;
+    if (!isOrg && !departmentFormFromUser)
+      throw new DomainExceptions.BusinessRuleViolationError(
+        'Department form not found',
+      );
+    if (isOrg && !orgFormFromUser)
+      throw new DomainExceptions.BusinessRuleViolationError(
+        'Org form not found',
+      );
+
+    const user = userContext.value.user;
+    const formId = isOrg ? orgFormFromUser : departmentFormFromUser;
+
+    const targetUser = await this.userEntityService.getByOrgId(
+      {
+        id: payload.userId,
+        orgId: user.orgId,
+      },
+      { throw: true },
+    );
+    if (!targetUser.userInfo) {
+      return await this.db.transaction(async (tx) => {
         const submission = await this.formSubmissionEntityService.create(
           {
-            formId: payload.formId,
+            formId,
             data: payload.data,
           },
           { db: tx, throw: true },
         );
 
         const updatedUser = await this.userEntityService.updateUserInfo(
-          user.id,
-          submission.id,
+          {
+            userId: targetUser.id,
+            formSubmissionId: submission.id,
+            keyType:
+              payload.type === 'department' ? 'departmentInfoId' : 'userInfo',
+          },
           { db: tx, throw: true },
         );
 
@@ -147,9 +174,9 @@ export class OnboardingService {
       });
     }
     const updatedSubmission = await this.formSubmissionEntityService.update(
-      user.userInfo,
+      targetUser.userInfo,
       {
-        formId: payload.formId,
+        formId,
         data: payload.data,
       },
       { throw: false },
@@ -159,7 +186,7 @@ export class OnboardingService {
       throw new NotFoundException('Form submission not found');
 
     return withResponseCode(HttpStatus.OK).item({
-      user: user,
+      user: targetUser,
       submission: updatedSubmission,
     });
   }

@@ -9,7 +9,7 @@ import { MetaAppCoreModule } from './modules/meta-app-core.module';
 export class MetaAppModule {
   static readonly registeredRoutes = {
     onboardUser: 'api/meta-app/onboard/register',
-    updateProfile: 'api/meta-app/onboard/update-profile',
+    updateProfile: 'api/meta-app/onboard/update-user-profile-data',
     app: 'api/meta-app/app',
     permissions: 'api/meta-app/permissions',
     assignDepartment: 'api/assign-department',
@@ -20,6 +20,7 @@ export class MetaAppModule {
     REGISTER_USER: 'REGISTER_USER',
     MANAGE_PERMISSIONS: 'MANAGE_PERMISSIONS',
     DEPARTMENT_ASSIGN_CHILDREN_USERS: 'DEPARTMENT_ASSIGN_CHILDREN_USERS',
+    UPDATE_USER_PROFILE: 'UPDATE_USER_PROFILE',
   } as const;
 
   private static get allDefaultRoutes() {
@@ -58,6 +59,16 @@ export class MetaAppModule {
             `${MetaAppModule.name}:${MetaAppModule.permissions.DEPARTMENT_ASSIGN_CHILDREN_USERS}`,
           ],
           message: "You don't have access to manage department for users",
+        }),
+      },
+      {
+        route: MetaAppModule.registeredRoutes.updateProfile,
+        apply: (user: UserContext) => ({
+          isAdmin: true,
+          allowedPermissions: [
+            `${MetaAppModule.name}:${MetaAppModule.permissions.UPDATE_USER_PROFILE}`,
+          ],
+          message: "You don't have access to update user profile data",
         }),
       },
     ],

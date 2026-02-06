@@ -1,6 +1,6 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
+import { Body, Controller, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
-import { RedisService, SchemaPipe } from 'src/common';
+import { RedisService, SchemaPipe, ZodRawValidatePipe } from 'src/common';
 import { HeaderConstants, ZodConstants } from 'src/common/constants';
 import { GetRoute } from 'src/common/decorators';
 import z from 'zod';
@@ -25,9 +25,10 @@ export class OnboardingController {
     v: z.string(),
   });
 
-  static readonly updateProfile = z.object({
-    formId: z.string().uuid(),
+  static readonly updateFormData = z.object({
     data: z.object({}).passthrough().required(),
+    userId: ZodConstants.UUID,
+    type: z.enum(['department', 'profile']),
   });
 
   static readonly create = z
@@ -70,12 +71,12 @@ export class OnboardingController {
     return this.onboardingService.onboardUser(body);
   }
 
-  @Post('update-profile')
+  @Post('update-user-profile-data')
   updateProfile(
     @Req() req: Request,
-    @Body(SchemaPipe.inject(OnboardingController.updateProfile))
-    body: z.infer<typeof OnboardingController.updateProfile>,
+    @Body(SchemaPipe.inject(OnboardingController.updateFormData))
+    body: z.infer<typeof OnboardingController.updateFormData>,
   ) {
-    return this.onboardingService.updateProfile(req.currentUser, body);
+    return this.onboardingService.updateUserInfo(req.beans.UserContext!, body);
   }
 }
