@@ -89,8 +89,13 @@ export class OnboardingController {
     @Req() req: Request,
     @Param('userId', ZodRawValidatePipe.inject(ZodConstants.UUID))
     userId: string,
+    @Query('departmentId') departmentId?: string,
   ) {
-    return this.onboardingService.getUserProfile(req.beans.UserContext!, userId);
+    return this.onboardingService.getUserProfile(
+      req.beans.UserContext!,
+      userId,
+      departmentId,
+    );
   }
 
   @Get('users')

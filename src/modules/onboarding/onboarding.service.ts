@@ -146,13 +146,16 @@ export class OnboardingService {
       }
     }
     // Pre-flight: check media uploads before entering transaction
-    // const preflight = await this.userEntityService.getByOrgId(
-    //   { id: payload.userId, orgId: user.orgId },
-    //   { throw: true },
-    // );
-    // if (preflight.departmentInfoId) {
-    //   await this.mediaEntityService.ensureNoUploadsInProgress(preflight.departmentInfoId);
-    // }
+    if (payload.departmentId) {
+      const existingFsId =
+        await this.departmentUsersEntityService.getFormSubmission(
+          payload.userId,
+          payload.departmentId,
+        );
+      if (existingFsId) {
+        await this.mediaEntityService.ensureNoUploadsInProgress(existingFsId);
+      }
+    }
 
     return await this.db.transaction(async (tx) => {
       const targetUser = await this.userEntityService.getByOrgId(
@@ -196,22 +199,27 @@ export class OnboardingService {
           departmentFormId = form.id;
         }
 
-        if (!targetUser.departmentInfoId) {
+        const existingFsId =
+          await this.departmentUsersEntityService.getFormSubmission(
+            targetUser.id,
+            payload.departmentId,
+            tx,
+          );
+
+        if (!existingFsId) {
           submission = await this.formSubmissionEntityService.create(
             { formId: departmentFormId, data: payload.data },
             { db: tx, throw: true },
           );
-          await this.userEntityService.updateUserInfo(
-            {
-              userId: targetUser.id,
-              formSubmissionId: submission.id,
-              keyType: 'departmentInfoId',
-            },
-            { db: tx, throw: true },
+          await this.departmentUsersEntityService.setFormSubmission(
+            targetUser.id,
+            payload.departmentId,
+            submission.id,
+            tx,
           );
         } else {
           submission = await this.formSubmissionEntityService.update(
-            targetUser.departmentInfoId,
+            existingFsId,
             { formId: departmentFormId, data: payload.data },
             { db: tx, throw: true },
           );
@@ -225,7 +233,11 @@ export class OnboardingService {
     });
   }
 
-  async getUserProfile(userContext: UserContext, userId: string) {
+  async getUserProfile(
+    userContext: UserContext,
+    userId: string,
+    departmentId?: string,
+  ) {
     const user = userContext.value.user;
 
     // admin → allow
@@ -252,11 +264,17 @@ export class OnboardingService {
 
     let departmentInfo: Schema.FormSubmission | null = null;
 
-    if (targetUser.departmentInfoId) {
-      departmentInfo = await this.formSubmissionEntityService.getById(
-        targetUser.departmentInfoId,
-        { throw: false },
-      );
+    if (departmentId) {
+      const fsId =
+        await this.departmentUsersEntityService.getFormSubmission(
+          userId,
+          departmentId,
+        );
+      if (fsId) {
+        departmentInfo = await this.formSubmissionEntityService.getById(fsId, {
+          throw: false,
+        });
+      }
     }
 
     return withResponseCode(HttpStatus.OK).item({
