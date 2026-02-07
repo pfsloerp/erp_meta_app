@@ -145,17 +145,20 @@ export class OnboardingService {
         );
       }
     }
+    // Pre-flight: check media uploads before entering transaction
+    // const preflight = await this.userEntityService.getByOrgId(
+    //   { id: payload.userId, orgId: user.orgId },
+    //   { throw: true },
+    // );
+    // if (preflight.departmentInfoId) {
+    //   await this.mediaEntityService.ensureNoUploadsInProgress(preflight.departmentInfoId);
+    // }
 
     return await this.db.transaction(async (tx) => {
       const targetUser = await this.userEntityService.getByOrgId(
         { id: payload.userId, orgId: user.orgId },
         { db: tx, throw: true },
       );
-
-      // Block update if media is still uploading for this form submission
-      if (targetUser.departmentInfoId) {
-        await this.mediaEntityService.ensureNoUploadsInProgress(targetUser.departmentInfoId);
-      }
 
       const updates: Record<string, unknown> = {};
 
@@ -167,10 +170,7 @@ export class OnboardingService {
       }
 
       if (Object.keys(updates).length > 0) {
-        await tx
-          .update(users)
-          .set(updates)
-          .where(eq(users.id, targetUser.id));
+        await tx.update(users).set(updates).where(eq(users.id, targetUser.id));
       }
 
       let submission: Schema.FormSubmission | null = null;
