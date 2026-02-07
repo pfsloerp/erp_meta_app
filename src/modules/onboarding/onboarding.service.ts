@@ -17,6 +17,7 @@ import {
   DepartmentUsersEntityService,
   FormSubmissionEntityService,
   FormsEntityService,
+  MediaEntityService,
   UserEntityService,
 } from 'src/entities/db';
 import { department, users } from 'src/db/schema';
@@ -44,6 +45,7 @@ export class OnboardingService {
     private formSubmissionEntityService: FormSubmissionEntityService,
     private departmentEntityService: DepartmentEntityService,
     private formsEntityService: FormsEntityService,
+    private mediaEntityService: MediaEntityService,
   ) {}
 
   private getRedisOnboardKey(email: string) {
@@ -149,6 +151,11 @@ export class OnboardingService {
         { id: payload.userId, orgId: user.orgId },
         { db: tx, throw: true },
       );
+
+      // Block update if media is still uploading for this form submission
+      if (targetUser.departmentInfoId) {
+        await this.mediaEntityService.ensureNoUploadsInProgress(targetUser.departmentInfoId);
+      }
 
       const updates: Record<string, unknown> = {};
 
