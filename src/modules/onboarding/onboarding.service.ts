@@ -136,8 +136,8 @@ export class OnboardingService {
     // non-admin with permission → allow
     // non-admin without permission → only allow self-update
     if (!user.isAdmin) {
-      const hasPermission = userContext.hasPermission(
-        MetaAppModule.permissions.UPDATE_USER_PROFILE,
+      const hasPermission = userContext.hasPermissionByName(
+        `${MetaAppModule.name}:${MetaAppModule.permissions.UPDATE_USER_PROFILE}`,
       );
       if (!hasPermission && user.id !== payload.userId) {
         throw new ForbiddenException(
@@ -244,8 +244,8 @@ export class OnboardingService {
     // non-admin with permission → allow
     // non-admin without permission → only allow self
     if (!user.isAdmin) {
-      const hasPermission = userContext.hasPermission(
-        MetaAppModule.permissions.UPDATE_USER_PROFILE,
+      const hasPermission = userContext.hasPermissionByName(
+        `${MetaAppModule.name}:${MetaAppModule.permissions.UPDATE_USER_PROFILE}`,
       );
       if (!hasPermission && user.id !== userId) {
         throw new ForbiddenException(
