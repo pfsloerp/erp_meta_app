@@ -67,12 +67,20 @@ export class MetaAppModule {
       },
       {
         route: MetaAppModule.registeredRoutes.getUsersList,
-        apply: (user: UserContext) => ({
-          isAdmin: true,
-          allowedPermissions: [
-            `${MetaAppModule.name}:${MetaAppModule.permissions.UPDATE_USER_PROFILE}`,
-          ],
-          message: "You don't have access to view users list",
+        on: (user: UserContext) =>
+          user.value.user.isAdmin ||
+          user.hasPermissionByName(
+            `${MetaAppModule.name}:${MetaAppModule.permissions.MANAGE_USER_ACCESS}`,
+          ) ||
+          user.hasPermissionByName(
+            `${MetaAppModule.name}:${MetaAppModule.permissions.DEPARTMENT_ASSIGN_CHILDREN_USERS}`,
+          ) ||
+          user.hasPermissionByName(
+            `${MetaAppModule.name}:${MetaAppModule.permissions.MANAGE_PERMISSIONS}`,
+          ),
+        apply: (_user: UserContext) => ({
+          isAdmin: false,
+          allowedPermissions: [] as any,
         }),
       },
       {
