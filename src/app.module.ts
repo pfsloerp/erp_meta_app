@@ -99,6 +99,9 @@ export class MetaAppModule {
           ) ||
           user.hasPermissionByName(
             `${MetaAppModule.name}:${MetaAppModule.permissions.MANAGE_PERMISSIONS}`,
+          ) ||
+          user.hasPermissionByName(
+            `${MetaAppModule.name}:${MetaAppModule.permissions.REGISTER_USER}`,
           ),
         apply: (_user: UserContext) => ({
           isAdmin: false,
