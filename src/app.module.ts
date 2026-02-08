@@ -9,6 +9,8 @@ import { MetaAppCoreModule } from './modules/meta-app-core.module';
 export class MetaAppModule {
   static readonly registeredRoutes = {
     onboardUser: 'api/meta-app/onboard/register',
+    updatePassword: 'api/meta-app/onboard/update-password',
+    createUser: 'api/meta-app/onboard/create-user',
     updateProfile: 'api/meta-app/onboard/update-user-profile-data',
     getProfile: 'api/meta-app/onboard/user-profile-data',
     getUsersList: 'api/meta-app/onboard/users',
@@ -37,6 +39,26 @@ export class MetaAppModule {
     verifyPermissionsOnDemand: [
       {
         route: `${MetaAppModule.registeredRoutes.onboardUser}`,
+        apply: (user: UserContext) => ({
+          isAdmin: true,
+          allowedPermissions: [
+            `${MetaAppModule.name}:${MetaAppModule.permissions.REGISTER_USER}`,
+          ],
+          message: "You don't have access to add users",
+        }),
+      },
+      {
+        route: `${MetaAppModule.registeredRoutes.updatePassword}`,
+        apply: (user: UserContext) => ({
+          isAdmin: true,
+          allowedPermissions: [
+            `${MetaAppModule.name}:${MetaAppModule.permissions.REGISTER_USER}`,
+          ],
+          message: "You don't have access to update password",
+        }),
+      },
+      {
+        route: `${MetaAppModule.registeredRoutes.createUser}`,
         apply: (user: UserContext) => ({
           isAdmin: true,
           allowedPermissions: [

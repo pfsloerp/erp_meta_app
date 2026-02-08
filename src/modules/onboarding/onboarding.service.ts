@@ -297,4 +297,41 @@ export class OnboardingService {
       userContext.value.departments?.children ?? [],
     );
   }
+
+  async updateUserPassword(
+    userContext: UserContext,
+    body: z.infer<typeof OnboardingController.updatePasswordSchema>,
+  ) {
+    const currentUser = userContext.value.user;
+    const targetUser = await this.userEntityService.getByOrgId(
+      { id: body.userId, orgId: currentUser.orgId },
+      { throw: true },
+    );
+
+    await this.userEntityService.updatePasswordByEmail(
+      {
+        email: targetUser.email,
+        password: this.cryptoService.gethash(body.password),
+      },
+      { throw: true },
+    );
+
+    return withResponseCode(HttpStatus.OK).success();
+  }
+
+  async createUserDirect(
+    userContext: UserContext,
+    body: z.infer<typeof OnboardingController.createUserSchema>,
+  ) {
+    const currentUser = userContext.value.user;
+
+    await this.commonEntityService.onboardUserToDepartment({
+      email: body.email.toLowerCase().trim(),
+      password: this.cryptoService.gethash(body.password),
+      orgId: currentUser.orgId,
+      departmentId: body.departmentId,
+    });
+
+    return withResponseCode(HttpStatus.CREATED).success();
+  }
 }

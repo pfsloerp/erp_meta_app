@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { RedisService, SchemaPipe, ZodRawValidatePipe } from 'src/common';
 import { HeaderConstants, ZodConstants } from 'src/common/constants';
@@ -33,6 +33,17 @@ export class OnboardingController {
     password: ZodConstants.password().optional(),
     departmentId: ZodConstants.UUID.optional(),
     data: z.object({}).passthrough().optional(),
+  });
+
+  static readonly updatePasswordSchema = z.object({
+    userId: ZodConstants.UUID,
+    password: ZodConstants.password(),
+  });
+
+  static readonly createUserSchema = z.object({
+    email: z.email().nonempty(),
+    password: ZodConstants.password(),
+    departmentId: ZodConstants.UUID,
   });
 
   static readonly create = z
@@ -108,6 +119,30 @@ export class OnboardingController {
       req.beans.UserContext!,
       prefix,
       paginatedArg,
+    );
+  }
+
+  @Put('update-password')
+  updatePassword(
+    @Req() req: Request,
+    @Body(SchemaPipe.inject(OnboardingController.updatePasswordSchema))
+    body: z.infer<typeof OnboardingController.updatePasswordSchema>,
+  ) {
+    return this.onboardingService.updateUserPassword(
+      req.beans.UserContext!,
+      body,
+    );
+  }
+
+  @Post('create-user')
+  createUserDirect(
+    @Req() req: Request,
+    @Body(SchemaPipe.inject(OnboardingController.createUserSchema))
+    body: z.infer<typeof OnboardingController.createUserSchema>,
+  ) {
+    return this.onboardingService.createUserDirect(
+      req.beans.UserContext!,
+      body,
     );
   }
 }
