@@ -15,6 +15,7 @@ export class MetaAppModule {
     app: 'api/meta-app/app',
     permissions: 'api/meta-app/permissions',
     assignDepartment: 'api/assign-department',
+    manageUserAccess: 'api/meta-app/manage-user-access',
   };
 
   static readonly name = 'META_APP';
@@ -23,6 +24,7 @@ export class MetaAppModule {
     MANAGE_PERMISSIONS: 'MANAGE_PERMISSIONS',
     DEPARTMENT_ASSIGN_CHILDREN_USERS: 'DEPARTMENT_ASSIGN_CHILDREN_USERS',
     UPDATE_USER_PROFILE: 'UPDATE_USER_PROFILE',
+    MANAGE_USER_ACCESS: 'MANAGE_USER_ACCESS',
   } as const;
 
   private static get allDefaultRoutes() {
@@ -71,6 +73,16 @@ export class MetaAppModule {
             `${MetaAppModule.name}:${MetaAppModule.permissions.UPDATE_USER_PROFILE}`,
           ],
           message: "You don't have access to view users list",
+        }),
+      },
+      {
+        route: MetaAppModule.registeredRoutes.manageUserAccess,
+        apply: (user: UserContext) => ({
+          isAdmin: true,
+          allowedPermissions: [
+            `${MetaAppModule.name}:${MetaAppModule.permissions.MANAGE_USER_ACCESS}`,
+          ],
+          message: "You don't have access to manage user access",
         }),
       },
     ],
