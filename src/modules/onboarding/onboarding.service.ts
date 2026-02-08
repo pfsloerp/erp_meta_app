@@ -208,7 +208,7 @@ export class OnboardingService {
 
         if (!existingFsId) {
           submission = await this.formSubmissionEntityService.create(
-            { formId: departmentFormId, data: payload.data },
+            { formId: departmentFormId, data: payload.data, updatedBy: user.id },
             { db: tx, throw: true },
           );
           await this.departmentUsersEntityService.setFormSubmission(
@@ -220,7 +220,7 @@ export class OnboardingService {
         } else {
           submission = await this.formSubmissionEntityService.update(
             existingFsId,
-            { formId: departmentFormId, data: payload.data },
+            { formId: departmentFormId, data: payload.data, updatedBy: user.id },
             { db: tx, throw: true },
           );
         }
