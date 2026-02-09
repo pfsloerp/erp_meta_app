@@ -266,22 +266,16 @@ export class OnboardingService {
       throw: true,
     });
 
-    // Filter forbidden fields for non-admin
-    let filteredData = payload.formData;
+    // Parse forbidden fields list (used for non-admin filtering)
+    let forbidden: string[] = [];
     if (!isAdmin) {
       const forbiddenSchema = z.object({ forbiddenFields: z.string() });
       const parsed = forbiddenSchema.safeParse(form.additionalInfo);
       if (parsed.success) {
-        const forbidden = parsed.data.forbiddenFields
+        forbidden = parsed.data.forbiddenFields
           .split(',')
           .map((f) => f.trim());
-        filteredData = Object.fromEntries(
-          Object.entries(payload.formData).filter(
-            ([key]) => !forbidden.includes(key),
-          ),
-        );
       }
-      // If parse fails → nothing is forbidden, use formData as-is
     }
 
     // Transaction: create or update formSubmission, link to user
@@ -291,6 +285,32 @@ export class OnboardingService {
         { db: tx, throw: true },
       );
 
+      // For non-admin: strip forbidden fields from payload, but preserve
+      // existing forbidden field values so admin-set data isn't wiped on upsert
+      let finalData: Record<string, unknown> = payload.formData;
+      if (!isAdmin && forbidden.length > 0) {
+        const userAllowedData = Object.fromEntries(
+          Object.entries(payload.formData).filter(
+            ([key]) => !forbidden.includes(key),
+          ),
+        );
+        let existingForbiddenData: Record<string, unknown> = {};
+        if (targetUser.userInfo) {
+          const existing = await this.formSubmissionEntityService.getById(
+            targetUser.userInfo,
+            { db: tx, throw: false },
+          );
+          if (existing?.data && typeof existing.data === 'object') {
+            existingForbiddenData = Object.fromEntries(
+              Object.entries(existing.data as Record<string, unknown>).filter(
+                ([key]) => forbidden.includes(key),
+              ),
+            );
+          }
+        }
+        finalData = { ...existingForbiddenData, ...userAllowedData };
+      }
+
       let submission: Schema.FormSubmission;
 
       if (!targetUser.userInfo) {
@@ -298,7 +318,7 @@ export class OnboardingService {
         submission = await this.formSubmissionEntityService.create(
           {
             formId: org.profileForm!,
-            data: filteredData,
+            data: finalData,
             updatedBy: user.id,
           },
           { db: tx, throw: true },
@@ -318,7 +338,7 @@ export class OnboardingService {
           targetUser.userInfo,
           {
             formId: org.profileForm!,
-            data: filteredData,
+            data: finalData,
             updatedBy: user.id,
           },
           { db: tx, throw: true },
