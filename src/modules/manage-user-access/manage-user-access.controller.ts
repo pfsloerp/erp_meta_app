@@ -1,6 +1,5 @@
-import { Controller, Param, Put } from '@nestjs/common';
-import { ZodRawValidatePipe } from 'src/common';
-import { ZodConstants } from 'src/common/constants';
+import { Controller, Put } from '@nestjs/common';
+import { UUIDParam } from 'src/common/decorators';
 import { ManageUserAccessService } from './manage-user-access.service';
 
 @Controller('api/meta-app/manage-user-access')
@@ -9,16 +8,14 @@ export class ManageUserAccessController {
 
   @Put(':userId/revoke')
   revoke(
-    @Param('userId', ZodRawValidatePipe.inject(ZodConstants.UUID))
-    userId: string,
+    @UUIDParam('userId') userId: string,
   ) {
     return this.manageUserAccessService.revokeAccess(userId);
   }
 
   @Put(':userId/enable')
   enable(
-    @Param('userId', ZodRawValidatePipe.inject(ZodConstants.UUID))
-    userId: string,
+    @UUIDParam('userId') userId: string,
   ) {
     return this.manageUserAccessService.enableAccess(userId);
   }

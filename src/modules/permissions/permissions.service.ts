@@ -1,9 +1,11 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpStatus,
   Injectable,
 } from '@nestjs/common';
-import { ControllerResponse, UserContext } from 'src/common/bean';
+import { UserContext } from 'src/common/bean';
+import { withResponseCode } from 'src/common/http';
 import {
   CommonEntityService,
   PermissionEntityService,
@@ -84,13 +86,13 @@ export class PermissionsService {
         permissionId,
         userId,
       );
-      return ControllerResponse.Success;
+      return withResponseCode(HttpStatus.OK).success();
     }
     await this.permissionEntityService.assignPermissionToUser(
       user,
       permissionId,
       userId,
     );
-    return ControllerResponse.Success;
+    return withResponseCode(HttpStatus.OK).success();
   }
 }

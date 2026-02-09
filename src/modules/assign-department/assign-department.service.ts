@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { ControllerResponse, UserContext } from 'src/common/bean';
+import { UserContext } from 'src/common/bean';
 import { CommonEntityService, UserEntityService } from 'src/entities/db';
 
 @Injectable()

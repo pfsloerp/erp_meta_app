@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
-import { RedisService, SchemaPipe, ZodRawValidatePipe } from 'src/common';
+import { RedisService, SchemaPipe } from 'src/common';
 import { HeaderConstants, ZodConstants } from 'src/common/constants';
-import { GetRoute } from 'src/common/decorators';
+import { GetRoute, UUIDParam } from 'src/common/decorators';
 import { Pagination } from 'src/common/decorators/paginated.decorator';
 import type { PaginatedArgType } from 'src/types';
 import z from 'zod';
@@ -98,8 +98,7 @@ export class OnboardingController {
   @Get('user-profile-data/:userId')
   getProfile(
     @Req() req: Request,
-    @Param('userId', ZodRawValidatePipe.inject(ZodConstants.UUID))
-    userId: string,
+    @UUIDParam('userId') userId: string,
     @Query('departmentId') departmentId?: string,
   ) {
     return this.onboardingService.getUserProfile(

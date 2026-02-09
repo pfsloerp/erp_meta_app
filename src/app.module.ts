@@ -18,6 +18,7 @@ export class MetaAppModule {
     permissions: 'api/meta-app/permissions',
     assignDepartment: 'api/assign-department',
     manageUserAccess: 'api/meta-app/manage-user-access',
+    forms: 'api/meta-app/forms',
   };
 
   static readonly name = 'META_APP';
@@ -27,6 +28,8 @@ export class MetaAppModule {
     DEPARTMENT_ASSIGN_CHILDREN_USERS: 'DEPARTMENT_ASSIGN_CHILDREN_USERS',
     UPDATE_USER_PROFILE: 'UPDATE_USER_PROFILE',
     MANAGE_USER_ACCESS: 'MANAGE_USER_ACCESS',
+    GET_USERS: 'GET_USERS',
+    MANAGE_FORMS: 'MANAGE_FORMS',
   } as const;
 
   private static get allDefaultRoutes() {
@@ -89,23 +92,11 @@ export class MetaAppModule {
       },
       {
         route: MetaAppModule.registeredRoutes.getUsersList,
-        on: (user: UserContext) =>
-          user.value.user.isAdmin ||
-          user.hasPermissionByName(
-            `${MetaAppModule.name}:${MetaAppModule.permissions.MANAGE_USER_ACCESS}`,
-          ) ||
-          user.hasPermissionByName(
-            `${MetaAppModule.name}:${MetaAppModule.permissions.DEPARTMENT_ASSIGN_CHILDREN_USERS}`,
-          ) ||
-          user.hasPermissionByName(
-            `${MetaAppModule.name}:${MetaAppModule.permissions.MANAGE_PERMISSIONS}`,
-          ) ||
-          user.hasPermissionByName(
-            `${MetaAppModule.name}:${MetaAppModule.permissions.REGISTER_USER}`,
-          ),
-        apply: (_user: UserContext) => ({
-          isAdmin: false,
-          allowedPermissions: [] as any,
+        apply: (user: UserContext) => ({
+          isAdmin: true,
+          allowedPermissions: [
+            `${MetaAppModule.name}:${MetaAppModule.permissions.GET_USERS}`,
+          ],
         }),
       },
       {
@@ -116,6 +107,16 @@ export class MetaAppModule {
             `${MetaAppModule.name}:${MetaAppModule.permissions.MANAGE_USER_ACCESS}`,
           ],
           message: "You don't have access to manage user access",
+        }),
+      },
+      {
+        route: MetaAppModule.registeredRoutes.forms,
+        apply: (user: UserContext) => ({
+          isAdmin: true,
+          allowedPermissions: [
+            `${MetaAppModule.name}:${MetaAppModule.permissions.MANAGE_FORMS}`,
+          ],
+          message: "You don't have access to manage forms",
         }),
       },
     ],

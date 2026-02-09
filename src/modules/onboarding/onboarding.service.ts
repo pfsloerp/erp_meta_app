@@ -24,7 +24,7 @@ import { department, users } from 'src/db/schema';
 import { Schema } from 'src/types';
 import z from 'zod';
 import { OnboardingController } from './onboarding.controller';
-import { ControllerResponse, UserContext } from 'src/common/bean';
+import { UserContext } from 'src/common/bean';
 import { EmailQueueService } from 'src/common/queue/email_queue/email_queue.service';
 import { Template } from 'src/common/templates';
 import { withResponseCode } from 'src/common/http';
@@ -92,7 +92,7 @@ export class OnboardingService {
       );
     });
     if (isDev) return finalResponse;
-    return ControllerResponse.Success;
+    return withResponseCode(HttpStatus.OK).success();
   }
 
   async onboardUser(body: z.infer<typeof OnboardingController.onboardUser>) {
@@ -120,7 +120,7 @@ export class OnboardingService {
         orgId: resp.orgId,
         password: this.cryptoService.gethash(body.password),
       });
-      return ControllerResponse.Success;
+      return withResponseCode(HttpStatus.OK).success();
     } catch (err) {
       throw new InternalServerErrorException();
     }
