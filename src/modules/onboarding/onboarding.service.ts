@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   HttpStatus,
   Inject,
@@ -18,6 +19,7 @@ import {
   FormSubmissionEntityService,
   FormsEntityService,
   MediaEntityService,
+  OrganizationEntityService,
   UserEntityService,
 } from 'src/entities/db';
 import { department, users } from 'src/db/schema';
@@ -46,6 +48,7 @@ export class OnboardingService {
     private departmentEntityService: DepartmentEntityService,
     private formsEntityService: FormsEntityService,
     private mediaEntityService: MediaEntityService,
+    private organizationEntityService: OrganizationEntityService,
   ) {}
 
   private getRedisOnboardKey(email: string) {
@@ -229,6 +232,102 @@ export class OnboardingService {
       return withResponseCode(HttpStatus.OK).item({
         user: targetUser,
         ...(submission && { submission }),
+      });
+    });
+  }
+
+  async updateUserProfile(
+    userContext: UserContext,
+    payload: z.infer<typeof OnboardingController.updateUserProfileSchema>,
+  ) {
+    const user = userContext.value.user;
+
+    // No userId → self-update; userId provided → must be admin
+    const targetUserId = payload.userId ?? user.id;
+    if (payload.userId && !user.isAdmin) {
+      throw new ForbiddenException(
+        'Only admins can update other users profiles',
+      );
+    }
+    const isAdmin = user.isAdmin;
+
+    // Get org → check profileForm exists
+    const org = await this.organizationEntityService.getOrg(user, {
+      throw: true,
+    });
+    if (!org.profileForm) {
+      throw new BadRequestException(
+        'Profile form not configured for this organization',
+      );
+    }
+
+    // Get the form to read additionalInfo
+    const form = await this.formsEntityService.getFormById(org.profileForm, {
+      throw: true,
+    });
+
+    // Filter forbidden fields for non-admin
+    let filteredData = payload.formData;
+    if (!isAdmin) {
+      const forbiddenSchema = z.object({ forbiddenFields: z.string() });
+      const parsed = forbiddenSchema.safeParse(form.additionalInfo);
+      if (parsed.success) {
+        const forbidden = parsed.data.forbiddenFields
+          .split(',')
+          .map((f) => f.trim());
+        filteredData = Object.fromEntries(
+          Object.entries(payload.formData).filter(
+            ([key]) => !forbidden.includes(key),
+          ),
+        );
+      }
+      // If parse fails → nothing is forbidden, use formData as-is
+    }
+
+    // Transaction: create or update formSubmission, link to user
+    return await this.db.transaction(async (tx) => {
+      const targetUser = await this.userEntityService.getByOrgId(
+        { id: targetUserId, orgId: user.orgId },
+        { db: tx, throw: true },
+      );
+
+      let submission: Schema.FormSubmission;
+
+      if (!targetUser.userInfo) {
+        // Create new submission
+        submission = await this.formSubmissionEntityService.create(
+          {
+            formId: org.profileForm!,
+            data: filteredData,
+            updatedBy: user.id,
+          },
+          { db: tx, throw: true },
+        );
+        // Link to user
+        await this.userEntityService.updateUserInfo(
+          {
+            userId: targetUser.id,
+            formSubmissionId: submission.id,
+            keyType: 'userInfo',
+          },
+          { db: tx, throw: true },
+        );
+      } else {
+        // Update existing submission
+        submission = await this.formSubmissionEntityService.update(
+          targetUser.userInfo,
+          {
+            formId: org.profileForm!,
+            data: filteredData,
+            updatedBy: user.id,
+          },
+          { db: tx, throw: true },
+        );
+      }
+
+      return withResponseCode(HttpStatus.OK).item({
+        user: targetUser,
+        submission,
       });
     });
   }

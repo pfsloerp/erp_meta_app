@@ -19,6 +19,7 @@ export class MetaAppModule {
     assignDepartment: 'api/assign-department',
     manageUserAccess: 'api/meta-app/manage-user-access',
     forms: 'api/meta-app/forms',
+    updateUserProfile: 'api/meta-app/onboard/update-user-profile',
   };
 
   static readonly name = 'META_APP';

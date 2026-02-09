@@ -46,6 +46,11 @@ export class OnboardingController {
     departmentId: ZodConstants.UUID,
   });
 
+  static readonly updateUserProfileSchema = z.object({
+    formData: z.record(z.string(), z.unknown()),
+    userId: ZodConstants.UUID.optional(),
+  });
+
   static readonly create = z
     .object({
       departmentId: z.string(),
@@ -93,6 +98,18 @@ export class OnboardingController {
     body: z.infer<typeof OnboardingController.updateFormData>,
   ) {
     return this.onboardingService.updateUserInfo(req.beans.UserContext!, body);
+  }
+
+  @Post('update-user-profile')
+  updateUserProfile(
+    @Req() req: Request,
+    @Body(SchemaPipe.inject(OnboardingController.updateUserProfileSchema))
+    body: z.infer<typeof OnboardingController.updateUserProfileSchema>,
+  ) {
+    return this.onboardingService.updateUserProfile(
+      req.beans.UserContext!,
+      body,
+    );
   }
 
   @Get('user-profile-data/:userId')
