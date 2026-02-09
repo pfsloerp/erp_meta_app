@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Post, Put, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { SchemaPipe } from 'src/common';
 import { UUIDParam } from 'src/common/decorators';
 import { Pagination } from 'src/common/decorators/paginated.decorator';
@@ -29,16 +30,26 @@ export class MetaAppFormsController {
   });
 
   @Get()
-  getAll(@Pagination() paginatedArg: PaginatedArgType) {
-    return this.formsService.getAll(paginatedArg);
+  getAll(
+    @Pagination() paginatedArg: PaginatedArgType,
+    @Req() req: Request,
+  ) {
+    return this.formsService.getAll(
+      paginatedArg,
+      req.beans.UserContext!.value.user.orgId,
+    );
   }
 
   @Post()
   create(
     @Body(SchemaPipe.inject(MetaAppFormsController.createSchema))
     body: z.infer<typeof MetaAppFormsController.createSchema>,
+    @Req() req: Request,
   ) {
-    return this.formsService.create(body);
+    return this.formsService.create(
+      body,
+      req.beans.UserContext!.value.user.orgId,
+    );
   }
 
   @Put(':id')
@@ -46,12 +57,23 @@ export class MetaAppFormsController {
     @UUIDParam('id') id: string,
     @Body(SchemaPipe.inject(MetaAppFormsController.updateSchema))
     body: z.infer<typeof MetaAppFormsController.updateSchema>,
+    @Req() req: Request,
   ) {
-    return this.formsService.update(id, body);
+    return this.formsService.update(
+      id,
+      body,
+      req.beans.UserContext!.value.user.orgId,
+    );
   }
 
   @Delete(':id')
-  remove(@UUIDParam('id') id: string) {
-    return this.formsService.delete(id);
+  remove(
+    @UUIDParam('id') id: string,
+    @Req() req: Request,
+  ) {
+    return this.formsService.delete(
+      id,
+      req.beans.UserContext!.value.user.orgId,
+    );
   }
 }

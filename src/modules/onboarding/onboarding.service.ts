@@ -156,7 +156,7 @@ export class OnboardingService {
           payload.departmentId,
         );
       if (existingFsId) {
-        await this.mediaEntityService.ensureNoUploadsInProgress(existingFsId);
+        await this.mediaEntityService.ensureNoUploadsInProgress(existingFsId, undefined, { orgId: user.orgId });
       }
     }
 
@@ -193,7 +193,7 @@ export class OnboardingService {
         if (!departmentFormId) {
           const form = await this.formsEntityService.createForm(
             { name: 'Department Form', content: payload.data },
-            { db: tx, throw: true },
+            { db: tx, throw: true, orgId: user.orgId },
           );
           await tx
             .update(department)
@@ -212,7 +212,7 @@ export class OnboardingService {
         if (!existingFsId) {
           submission = await this.formSubmissionEntityService.create(
             { formId: departmentFormId, data: payload.data, updatedBy: user.id },
-            { db: tx, throw: true },
+            { db: tx, throw: true, orgId: user.orgId },
           );
           await this.departmentUsersEntityService.setFormSubmission(
             targetUser.id,
@@ -224,7 +224,7 @@ export class OnboardingService {
           submission = await this.formSubmissionEntityService.update(
             existingFsId,
             { formId: departmentFormId, data: payload.data, updatedBy: user.id },
-            { db: tx, throw: true },
+            { db: tx, throw: true, orgId: user.orgId },
           );
         }
       }
@@ -264,6 +264,7 @@ export class OnboardingService {
     // Get the form to read additionalInfo
     const form = await this.formsEntityService.getFormById(org.profileForm, {
       throw: true,
+      orgId: user.orgId,
     });
 
     // Parse forbidden fields list (used for non-admin filtering)
@@ -298,7 +299,7 @@ export class OnboardingService {
         if (targetUser.userInfo) {
           const existing = await this.formSubmissionEntityService.getById(
             targetUser.userInfo,
-            { db: tx, throw: false },
+            { db: tx, throw: false, orgId: user.orgId },
           );
           if (existing?.data && typeof existing.data === 'object') {
             existingForbiddenData = Object.fromEntries(
@@ -321,7 +322,7 @@ export class OnboardingService {
             data: finalData,
             updatedBy: user.id,
           },
-          { db: tx, throw: true },
+          { db: tx, throw: true, orgId: user.orgId },
         );
         // Link to user
         await this.userEntityService.updateUserInfo(
@@ -341,7 +342,7 @@ export class OnboardingService {
             data: finalData,
             updatedBy: user.id,
           },
-          { db: tx, throw: true },
+          { db: tx, throw: true, orgId: user.orgId },
         );
       }
 
@@ -392,6 +393,7 @@ export class OnboardingService {
       if (fsId) {
         departmentInfo = await this.formSubmissionEntityService.getById(fsId, {
           throw: false,
+          orgId: user.orgId,
         });
       }
     }
