@@ -33,21 +33,13 @@ export class MetaAppModule {
     MANAGE_FORMS: 'MANAGE_FORMS',
   } as const;
 
-  private static get allDefaultRoutes() {
-    return Object.values(MetaAppModule.registeredRoutes);
-  }
-
   static readonly middlewares = {
-    auth: MetaAppModule.allDefaultRoutes,
-    initializeUserData: MetaAppModule.allDefaultRoutes,
-    verifyPermissionsOnDemand: [
+    guards: [
       {
         route: `${MetaAppModule.registeredRoutes.onboardUser}`,
         apply: (user: UserContext) => ({
           isAdmin: true,
-          allowedPermissions: [
-            `${MetaAppModule.name}:${MetaAppModule.permissions.REGISTER_USER}`,
-          ],
+          permissions: [MetaAppModule.permissions.REGISTER_USER],
           message: "You don't have access to add users",
         }),
       },
@@ -55,9 +47,7 @@ export class MetaAppModule {
         route: `${MetaAppModule.registeredRoutes.updatePassword}`,
         apply: (user: UserContext) => ({
           isAdmin: true,
-          allowedPermissions: [
-            `${MetaAppModule.name}:${MetaAppModule.permissions.REGISTER_USER}`,
-          ],
+          permissions: [MetaAppModule.permissions.REGISTER_USER],
           message: "You don't have access to update password",
         }),
       },
@@ -65,9 +55,7 @@ export class MetaAppModule {
         route: `${MetaAppModule.registeredRoutes.createUser}`,
         apply: (user: UserContext) => ({
           isAdmin: true,
-          allowedPermissions: [
-            `${MetaAppModule.name}:${MetaAppModule.permissions.REGISTER_USER}`,
-          ],
+          permissions: [MetaAppModule.permissions.REGISTER_USER],
           message: "You don't have access to add users",
         }),
       },
@@ -75,9 +63,7 @@ export class MetaAppModule {
         route: `${MetaAppModule.registeredRoutes.permissions}/user/:userId/:action/permission/:permissionId`,
         apply: (user: UserContext) => ({
           isAdmin: true,
-          allowedPermissions: [
-            `${MetaAppModule.name}:${MetaAppModule.permissions.MANAGE_PERMISSIONS}`,
-          ],
+          permissions: [MetaAppModule.permissions.MANAGE_PERMISSIONS],
           message: "You don't have access to manage permissions",
         }),
       },
@@ -85,9 +71,7 @@ export class MetaAppModule {
         route: MetaAppModule.registeredRoutes.assignDepartment,
         apply: (user: UserContext) => ({
           isAdmin: true,
-          allowedPermissions: [
-            `${MetaAppModule.name}:${MetaAppModule.permissions.DEPARTMENT_ASSIGN_CHILDREN_USERS}`,
-          ],
+          permissions: [MetaAppModule.permissions.DEPARTMENT_ASSIGN_CHILDREN_USERS],
           message: "You don't have access to manage department for users",
         }),
       },
@@ -95,18 +79,14 @@ export class MetaAppModule {
         route: MetaAppModule.registeredRoutes.getUsersList,
         apply: (user: UserContext) => ({
           isAdmin: true,
-          allowedPermissions: [
-            `${MetaAppModule.name}:${MetaAppModule.permissions.GET_USERS}`,
-          ],
+          permissions: [MetaAppModule.permissions.GET_USERS],
         }),
       },
       {
         route: MetaAppModule.registeredRoutes.manageUserAccess,
         apply: (user: UserContext) => ({
           isAdmin: true,
-          allowedPermissions: [
-            `${MetaAppModule.name}:${MetaAppModule.permissions.MANAGE_USER_ACCESS}`,
-          ],
+          permissions: [MetaAppModule.permissions.MANAGE_USER_ACCESS],
           message: "You don't have access to manage user access",
         }),
       },
@@ -114,16 +94,10 @@ export class MetaAppModule {
         route: MetaAppModule.registeredRoutes.forms,
         apply: (user: UserContext) => ({
           isAdmin: true,
-          allowedPermissions: [
-            `${MetaAppModule.name}:${MetaAppModule.permissions.MANAGE_FORMS}`,
-          ],
+          permissions: [MetaAppModule.permissions.MANAGE_FORMS],
           message: "You don't have access to manage forms",
         }),
       },
     ],
-  } satisfies InstalledApp<
-    typeof MetaAppModule.name,
-    typeof MetaAppModule.permissions,
-    typeof MetaAppModule.registeredRoutes
-  >['middlewares'];
+  } satisfies InstalledApp['middlewares'];
 }

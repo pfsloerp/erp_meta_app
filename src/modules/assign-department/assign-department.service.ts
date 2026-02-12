@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { UserContext } from 'src/common/bean';
+import { CacheFactory } from 'src/common/cache-factory';
 import { CommonEntityService, UserEntityService } from 'src/entities/db';
 
 @Injectable()
@@ -7,6 +8,7 @@ export class AssignDepartmentService {
   constructor(
     private commonEntityService: CommonEntityService,
     private userEntityService: UserEntityService,
+    private cacheFactory: CacheFactory,
   ) {}
 
   private async validateTargetUser(
@@ -37,10 +39,12 @@ export class AssignDepartmentService {
     );
 
     if (currentUser.isAdmin) {
-      return await this.commonEntityService.addDepartment(
+      const result = await this.commonEntityService.addDepartment(
         targetUserId,
         departmentId,
       );
+      this.cacheFactory.userContext.invalidateByOrg(currentUser.orgId);
+      return result;
     }
 
     if (
@@ -62,10 +66,12 @@ export class AssignDepartmentService {
       );
     }
 
-    return await this.commonEntityService.addDepartment(
+    const result = await this.commonEntityService.addDepartment(
       targetUserId,
       departmentId,
     );
+    this.cacheFactory.userContext.invalidateByOrg(currentUser.orgId);
+    return result;
   }
 
   async removeDepartment(
@@ -79,10 +85,12 @@ export class AssignDepartmentService {
     );
 
     if (currentUser.isAdmin) {
-      return await this.commonEntityService.removeDepartment(
+      const result = await this.commonEntityService.removeDepartment(
         targetUserId,
         departmentId,
       );
+      this.cacheFactory.userContext.invalidateByOrg(currentUser.orgId);
+      return result;
     }
 
     if (!userContext.hasDepartmentAccess(departmentId)) {
@@ -101,9 +109,11 @@ export class AssignDepartmentService {
       );
     }
 
-    return await this.commonEntityService.removeDepartment(
+    const result = await this.commonEntityService.removeDepartment(
       targetUserId,
       departmentId,
     );
+    this.cacheFactory.userContext.invalidateByOrg(currentUser.orgId);
+    return result;
   }
 }

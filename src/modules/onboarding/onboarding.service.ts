@@ -18,7 +18,6 @@ import {
   DepartmentUsersEntityService,
   FormSubmissionEntityService,
   FormsEntityService,
-  MediaEntityService,
   OrganizationEntityService,
   UserEntityService,
 } from 'src/entities/db';
@@ -30,6 +29,7 @@ import { UserContext } from 'src/common/bean';
 import { EmailQueueService } from 'src/common/queue/email_queue/email_queue.service';
 import { Template } from 'src/common/templates';
 import { withResponseCode } from 'src/common/http';
+import { CacheFactory } from 'src/common/cache-factory';
 import { MetaAppModule } from '../../app.module';
 
 @Injectable()
@@ -47,8 +47,8 @@ export class OnboardingService {
     private formSubmissionEntityService: FormSubmissionEntityService,
     private departmentEntityService: DepartmentEntityService,
     private formsEntityService: FormsEntityService,
-    private mediaEntityService: MediaEntityService,
     private organizationEntityService: OrganizationEntityService,
+    private cacheFactory: CacheFactory,
   ) {}
 
   private getRedisOnboardKey(email: string) {
@@ -123,9 +123,27 @@ export class OnboardingService {
         orgId: resp.orgId,
         password: this.cryptoService.gethash(body.password),
       });
+      this.cacheFactory.userContext.invalidateByOrg(resp.orgId);
       return withResponseCode(HttpStatus.OK).success();
     } catch (err) {
       throw new InternalServerErrorException();
+    }
+  }
+
+  private checkUpdateProfilePermission(
+    userContext: UserContext,
+    userId?: string,
+  ) {
+    const user = userContext.value.user;
+    if (!user.isAdmin) {
+      const hasPermission = userContext.hasPermissionByName(
+        `${MetaAppModule.name}:${MetaAppModule.permissions.UPDATE_USER_PROFILE}`,
+      );
+      if (!hasPermission && user.id !== userId) {
+        throw new ForbiddenException(
+          'You dont have access to update this user',
+        );
+      }
     }
   }
 
@@ -138,28 +156,8 @@ export class OnboardingService {
     // admin → allow
     // non-admin with permission → allow
     // non-admin without permission → only allow self-update
-    if (!user.isAdmin) {
-      const hasPermission = userContext.hasPermissionByName(
-        `${MetaAppModule.name}:${MetaAppModule.permissions.UPDATE_USER_PROFILE}`,
-      );
-      if (!hasPermission && user.id !== payload.userId) {
-        throw new ForbiddenException(
-          'You dont have access to update this user',
-        );
-      }
-    }
+    this.checkUpdateProfilePermission(userContext, payload.userId);
     // Pre-flight: check media uploads before entering transaction
-    if (payload.departmentId) {
-      const existingFsId =
-        await this.departmentUsersEntityService.getFormSubmission(
-          payload.userId,
-          payload.departmentId,
-        );
-      if (existingFsId) {
-        await this.mediaEntityService.ensureNoUploadsInProgress(existingFsId, undefined, { orgId: user.orgId });
-      }
-    }
-
     return await this.db.transaction(async (tx) => {
       const targetUser = await this.userEntityService.getByOrgId(
         { id: payload.userId, orgId: user.orgId },
@@ -211,7 +209,11 @@ export class OnboardingService {
 
         if (!existingFsId) {
           submission = await this.formSubmissionEntityService.create(
-            { formId: departmentFormId, data: payload.data, updatedBy: user.id },
+            {
+              formId: departmentFormId,
+              data: payload.data,
+              updatedBy: user.id,
+            },
             { db: tx, throw: true, orgId: user.orgId },
           );
           await this.departmentUsersEntityService.setFormSubmission(
@@ -223,12 +225,18 @@ export class OnboardingService {
         } else {
           submission = await this.formSubmissionEntityService.update(
             existingFsId,
-            { formId: departmentFormId, data: payload.data, updatedBy: user.id },
+            {
+              formId: departmentFormId,
+              data: payload.data,
+              updatedBy: user.id,
+            },
             { db: tx, throw: true, orgId: user.orgId },
           );
         }
       }
 
+      this.cacheFactory.userContext.invalidateByOrg(user.orgId);
+      this.cacheFactory.authUser.invalidate(targetUser.id);
       return withResponseCode(HttpStatus.OK).item({
         user: targetUser,
         ...(submission && { submission }),
@@ -243,12 +251,8 @@ export class OnboardingService {
     const user = userContext.value.user;
 
     // No userId → self-update; userId provided → must be admin
-    const targetUserId = payload.userId ?? user.id;
-    if (payload.userId && !user.isAdmin) {
-      throw new ForbiddenException(
-        'Only admins can update other users profiles',
-      );
-    }
+    this.checkUpdateProfilePermission(userContext, payload?.userId);
+
     const isAdmin = user.isAdmin;
 
     // Get org → check profileForm exists
@@ -273,9 +277,7 @@ export class OnboardingService {
       const forbiddenSchema = z.object({ forbiddenFields: z.string() });
       const parsed = forbiddenSchema.safeParse(form.additionalInfo);
       if (parsed.success) {
-        forbidden = parsed.data.forbiddenFields
-          .split(',')
-          .map((f) => f.trim());
+        forbidden = parsed.data.forbiddenFields.split(',').map((f) => f.trim());
       }
     }
 
@@ -346,6 +348,8 @@ export class OnboardingService {
         );
       }
 
+      this.cacheFactory.userContext.invalidateByOrg(user.orgId);
+      this.cacheFactory.authUser.invalidate(targetUser.id);
       return withResponseCode(HttpStatus.OK).item({
         user: targetUser,
         submission,
@@ -359,7 +363,7 @@ export class OnboardingService {
     departmentId?: string,
   ) {
     const user = userContext.value.user;
-
+    this.checkUpdateProfilePermission(userContext, userId);
     // admin → allow
     // non-admin with permission → allow
     // non-admin without permission → only allow self
@@ -385,11 +389,10 @@ export class OnboardingService {
     let departmentInfo: Schema.FormSubmission | null = null;
 
     if (departmentId) {
-      const fsId =
-        await this.departmentUsersEntityService.getFormSubmission(
-          userId,
-          departmentId,
-        );
+      const fsId = await this.departmentUsersEntityService.getFormSubmission(
+        userId,
+        departmentId,
+      );
       if (fsId) {
         departmentInfo = await this.formSubmissionEntityService.getById(fsId, {
           throw: false,
@@ -436,6 +439,7 @@ export class OnboardingService {
       },
       { throw: true },
     );
+    this.cacheFactory.authUser.invalidate(body.userId);
 
     return withResponseCode(HttpStatus.OK).success();
   }
@@ -452,6 +456,7 @@ export class OnboardingService {
       orgId: currentUser.orgId,
       departmentId: body.departmentId,
     });
+    this.cacheFactory.userContext.invalidateByOrg(currentUser.orgId);
 
     return withResponseCode(HttpStatus.CREATED).success();
   }

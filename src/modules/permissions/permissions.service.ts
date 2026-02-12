@@ -13,6 +13,7 @@ import {
 } from 'src/entities/db';
 import { Schema } from 'src/types';
 import { PermissionsController } from './permissions.controller';
+import { CacheFactory } from 'src/common/cache-factory';
 
 @Injectable()
 export class PermissionsService {
@@ -20,6 +21,7 @@ export class PermissionsService {
     private userEntityService: UserEntityService,
     private permissionEntityService: PermissionEntityService,
     private commonEntityService: CommonEntityService,
+    private cacheFactory: CacheFactory,
   ) {}
 
   async updatePermission(
@@ -86,13 +88,14 @@ export class PermissionsService {
         permissionId,
         userId,
       );
-      return withResponseCode(HttpStatus.OK).success();
+    } else {
+      await this.permissionEntityService.assignPermissionToUser(
+        user,
+        permissionId,
+        userId,
+      );
     }
-    await this.permissionEntityService.assignPermissionToUser(
-      user,
-      permissionId,
-      userId,
-    );
+    this.cacheFactory.userContext.invalidateByOrg(user.orgId);
     return withResponseCode(HttpStatus.OK).success();
   }
 }
