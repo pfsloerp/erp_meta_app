@@ -251,7 +251,8 @@ export class OnboardingService {
     const user = userContext.value.user;
 
     // No userId → self-update; userId provided → must be admin
-    this.checkUpdateProfilePermission(userContext, payload?.userId);
+    const targetUserId = payload.userId ?? user.id;
+    this.checkUpdateProfilePermission(userContext, targetUserId);
 
     const isAdmin = user.isAdmin;
 
